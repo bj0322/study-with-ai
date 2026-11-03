@@ -5,8 +5,8 @@ Usage:
         [--model gpt-4o-mini-tts] [--instructions "..."] [--speed 1.0] [--dry-run]
 
 Each "## " section becomes one MP3 (01_intro.mp3 ...), then all are joined into full.mp3.
-API key lookup: env OPENAI_API_KEY -> .env in the script's directory -> .env in the
-skill folder. Already-generated chunks are skipped, so a failed run can simply be rerun.
+API key lookup: env OPENAI_API_KEY -> .env next to script.md -> ~/.study-podcast/.env
+-> .env in the skill folder. Already-generated chunks are skipped, so a failed run can simply be rerun.
 """
 import argparse
 import json
@@ -30,6 +30,8 @@ DEFAULT_INSTRUCTIONS = (
     "Clear pronunciation, moderate pace, natural pauses between ideas."
 )
 SKILL_DIR = Path(__file__).resolve().parent.parent
+# Stable per-user key location; the skill folder is replaced on plugin updates.
+KEY_DIR = Path.home() / ".study-podcast"
 
 
 def read_env_file(folder):
@@ -51,6 +53,7 @@ def read_env_file(folder):
 def find_key(script_path):
     return (os.environ.get("OPENAI_API_KEY")
             or read_env_file(script_path.parent)
+            or read_env_file(KEY_DIR)
             or read_env_file(SKILL_DIR))
 
 
@@ -198,7 +201,7 @@ def main():
     key = find_key(script)
     if not key:
         sys.exit("No OpenAI API key. Set OPENAI_API_KEY or create "
-                 f"{SKILL_DIR / '.env'} with the line OPENAI_API_KEY=sk-...")
+                 f"{KEY_DIR / '.env'} with the line OPENAI_API_KEY=sk-...")
 
     out = Path(args.out)
     tmp = out / "_chunks"

@@ -1,0 +1,12 @@
+{
+  "name": "study-podcast",
+  "version": "1.0.0",
+  "description": "Turn lecture slides, textbook PDFs and notes into a page-by-page English explanation report with nothing skipped, a single-narrator podcast script, and MP3 audio via OpenAI TTS (bring your own API key).",
+  "author": {
+    "name": "bj0322"
+  },
+  "homepage": "https://github.com/bj0322/study-with-ai",
+  "repository": "https://github.com/bj0322/study-with-ai",
+  "license": "MIT",
+  "keywords": ["study", "lecture", "slides", "podcast", "tts", "exam"]
+}

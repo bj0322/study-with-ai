@@ -109,13 +109,13 @@ Uses the OpenAI TTS API. **The user obtains and supplies their own API key.**
 
 ### Check the API key
 
-The script looks for the key in this order: the `OPENAI_API_KEY` environment variable → `.env` in the work folder → `.env` in this skill's folder. A `.env.txt` file (what Notepad produces) and any `OPENAI_...=sk-...` variable name also work.
+The script looks for the key in this order: the `OPENAI_API_KEY` environment variable → `.env` in the work folder → `~/.study-podcast/.env` (the recommended place; `C:\Users\<name>\.study-podcast\.env` on Windows) → `.env` in this skill's folder. A `.env.txt` file (what Notepad produces) and any `OPENAI_...=sk-...` variable name also work.
 
 If there is no key, tell the user how to add it and wait:
 1. Create a key at https://platform.openai.com/api-keys (requires a payment method on the account).
-2. Create a `.env` file in this skill's folder (the parent of `scripts/`) containing the single line `OPENAI_API_KEY=sk-...`.
+2. Create the file `~/.study-podcast/.env` containing the single line `OPENAI_API_KEY=sk-...`. Offer to create the folder and an empty file for them (and open it) so they only have to paste the key in. Don't put the key in the skill's own folder: a plugin update replaces that folder and the key would be lost.
 
-Don't ask the user to paste the key into the chat. If they paste it anyway, save it to `.env` for them, but never echo it back in replies or command output.
+Don't ask the user to paste the key into the chat. If they paste it anyway, save it to `~/.study-podcast/.env` for them, but never echo it back in replies or command output.
 
 ### Run
 
