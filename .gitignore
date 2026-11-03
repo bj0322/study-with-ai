@@ -1,0 +1,16 @@
+# API keys — never commit
+.env
+.env.*
+*.env
+
+# Generated study outputs and test workspaces
+*_study/
+*-workspace/
+audio/
+*.mp3
+
+# Test cases use copyrighted course material as input; kept local only
+**/evals/
+
+__pycache__/
+*.pyc
