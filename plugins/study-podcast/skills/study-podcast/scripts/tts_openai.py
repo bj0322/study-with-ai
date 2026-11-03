@@ -198,7 +198,7 @@ def synth(key, text, out_path, args):
                 time.sleep(wait)
                 continue
             sys.exit(f"TTS request failed: HTTP {e.code}: {body}")
-        except urllib.error.URLError as e:
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
             if attempt < 4:
                 time.sleep(5)
                 continue
