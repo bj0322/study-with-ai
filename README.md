@@ -48,6 +48,15 @@ On older Claude Code versions, add the marketplace first:
 
 Restart Claude Code after installing. Get new versions later with `/plugin update study-podcast`.
 
+**On claude.ai or the desktop app's Chat tab** (no Claude Code needed):
+
+1. Download [**study-podcast.zip**](https://github.com/bj0322/study-with-ai/releases/latest/download/study-podcast.zip). Don't unzip it.
+2. Make sure code execution is turned on in Settings → Capabilities.
+3. Go to Customize → Skills (Settings → Capabilities → Skills on some versions), click **+**, and upload the ZIP.
+4. Attach your PDF in a chat and ask Claude to explain all of it.
+
+The report and script work everywhere. Audio needs Claude's sandbox to reach `api.openai.com`, which claude.ai may block depending on your network settings; if the audio step fails there, use Claude Code for it.
+
 ### Add your OpenAI API key (for audio)
 
 1. Create a key at https://platform.openai.com/api-keys.
