@@ -1,6 +1,6 @@
 {
   "name": "study-podcast",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Turn lecture slides, textbook PDFs and notes into a page-by-page English explanation report with nothing skipped, a single-narrator podcast script, and MP3 audio via OpenAI TTS (bring your own API key).",
   "author": {
     "name": "bj0322"

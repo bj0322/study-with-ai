@@ -11,7 +11,8 @@ The whole point of this skill is **completeness**. The user will study the entir
 
 ## 0. Setup
 
-- Work folder: create `<material-name>_study/` next to the input material and put every output there.
+- Work folder: create `<material-name>_study/` next to the input material and put every output there. If that folder is read-only (files uploaded into a chat usually are), create it in the environment's outputs folder instead and hand the finished files to the user for download.
+- Audio is the only step that needs anything beyond this sandbox (an API key and access to `api.openai.com`). Before promising audio, read "Know where you are running" in step 4. The report and script work everywhere.
 - Language: **all outputs are in English** — report, script and audio — whatever language the source is in. When the source is in another language, translate faithfully, and for key technical terms put the original-language term in parentheses the first time it appears so the user can match it to their lecture. Use another output language only if the user explicitly asks for one.
 - Install missing Python packages as needed: `python -m pip install pymupdf python-pptx python-docx` (only the ones required).
 
@@ -107,15 +108,35 @@ After finishing the script, show it to the user before TTS (for long scripts, ju
 
 Uses the OpenAI TTS API. **The user obtains and supplies their own API key.**
 
-### Check the API key
+### Know where you are running
 
-The script looks for the key in this order: the `OPENAI_API_KEY` environment variable → `.env` in the work folder → `~/.study-podcast/.env` (the recommended place; `C:\Users\<name>\.study-podcast\.env` on Windows) → `.env` in this skill's folder. A `.env.txt` file (what Notepad produces) and any `OPENAI_...=sk-...` variable name also work.
+Audio needs two things: an API key the script can read, and a network that lets it reach `api.openai.com`. Both depend on the environment, so work out which one you are in before promising audio:
+
+- **Claude Code** (CLI, or the Code tab of the desktop app): runs on the user's own computer. Both normally work. Recommended key location: `~/.study-podcast/.env` (`C:\Users\<name>\.study-podcast\.env` on Windows).
+- **Cowork** (desktop app): runs in a sandbox on the user's computer that sees only the folders the user connected. It can't see `~/.study-podcast`, so the key goes in a `.env` file **in the folder with the study material**. Whether `api.openai.com` is reachable depends on the sandbox's network settings.
+- **Chat** (claude.ai or the desktop app's Chat tab with code execution): runs in a remote sandbox that usually blocks outside connections, and there is no safe place to keep a key. Don't attempt audio here. Deliver the report and script, and tell the user they can turn `script.md` into audio from Claude Code or Cowork by asking "make audio from this script".
+
+Then check access before anything else (costs nothing, generates nothing):
+```bash
+python scripts/tts_openai.py <work>/script.md --check
+```
+Exit code 0 means ready. Otherwise the message says what is wrong: 2 = no key or key rejected, 3 = network blocked, 4 = billing not active.
+
+### Add the API key (exit code 2)
+
+The script looks for the key in this order: the `OPENAI_API_KEY` environment variable → `.env` in the work folder → `.env` in the folder above it (the study material's folder) → `.env` in the current directory → `~/.study-podcast/.env` → `.env` in this skill's folder. A `.env.txt` file (what Notepad produces) and any `OPENAI_...=sk-...` variable name also work.
 
 If there is no key, tell the user how to add it and wait:
-1. Create a key at https://platform.openai.com/api-keys (requires a payment method on the account).
-2. Create the file `~/.study-podcast/.env` containing the single line `OPENAI_API_KEY=sk-...`. Offer to create the folder and an empty file for them (and open it) so they only have to paste the key in. Don't put the key in the skill's own folder: a plugin update replaces that folder and the key would be lost.
+1. Create a key at https://platform.openai.com/api-keys and turn on billing at https://platform.openai.com/settings/organization/billing (separate from a ChatGPT subscription).
+2. Save it as a `.env` file containing the single line `OPENAI_API_KEY=sk-...`: in `~/.study-podcast/` for Claude Code, or in the study material's folder for Cowork. Offer to create the folder and an empty file for them (and open it) so they only have to paste the key in. Don't put the key in the skill's own folder: a plugin update replaces that folder and the key would be lost.
 
-Don't ask the user to paste the key into the chat. If they paste it anyway, save it to `~/.study-podcast/.env` for them, but never echo it back in replies or command output.
+Don't ask the user to paste the key into the chat. If they paste it anyway, save it to the right `.env` for them, but never echo it back in replies or command output.
+
+### When audio can't be made here (exit code 3 or 4)
+
+These are environment or account problems that retrying won't fix. Tell the user plainly what the script said, deliver the report and script anyway, and give the next step:
+- **3, network blocked:** generate the audio from Claude Code on their computer, or allow `api.openai.com` in the sandbox's network settings and rerun.
+- **4, billing:** add a payment method or credits on the OpenAI billing page, then rerun.
 
 ### Run
 
@@ -134,7 +155,7 @@ Options:
 - `--instructions`: defaults to a calm lecturer tone; change it if the user wants a different style.
 - `--speed` (0.25–4.0, default 1.0)
 
-If the script stops with a billing or key error, it is an account problem that retrying won't fix: tell the user exactly what it said (e.g. add a payment method or credits on the OpenAI billing page), deliver the report and script anyway, and give them the command to rerun once it's fixed.
+The generate command repeats the access check first, so a key, network or billing problem stops it before any audio is made, with the same exit codes as above.
 
 Output: one file per part (`audio/01_Intro.mp3` …) plus everything joined into `audio/full.mp3`. Finished chunks are skipped on re-run, so if a run fails partway, run the same command again to resume. With ffmpeg installed the parts are joined cleanly; without it the MP3s are concatenated byte-wise.
 

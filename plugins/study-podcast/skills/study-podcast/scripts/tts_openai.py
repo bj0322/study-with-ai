@@ -3,10 +3,16 @@
 Usage:
     python tts_openai.py <script.md> --out <audio_dir> [--voice coral]
         [--model gpt-4o-mini-tts] [--instructions "..."] [--speed 1.0] [--dry-run]
+    python tts_openai.py [<script.md>] --check
 
 Each "## " section becomes one MP3 (01_intro.mp3 ...), then all are joined into full.mp3.
-API key lookup: env OPENAI_API_KEY -> .env next to script.md -> ~/.study-podcast/.env
--> .env in the skill folder. Already-generated chunks are skipped, so a failed run can simply be rerun.
+API key lookup: env OPENAI_API_KEY -> .env next to script.md -> .env in the folder above it
+(the study material's folder) -> .env in the current directory -> ~/.study-podcast/.env
+-> .env in the skill folder. Already-generated chunks are skipped, so a failed run can
+simply be rerun.
+
+--check verifies the key and that api.openai.com is reachable, without generating audio.
+Exit codes: 0 ok, 2 no key / key rejected, 3 network blocked, 4 billing problem.
 """
 import argparse
 import json
@@ -32,6 +38,12 @@ DEFAULT_INSTRUCTIONS = (
 SKILL_DIR = Path(__file__).resolve().parent.parent
 # Stable per-user key location; the skill folder is replaced on plugin updates.
 KEY_DIR = Path.home() / ".study-podcast"
+BILLING_HELP = ("OpenAI account cannot be billed (no active billing or credits). Add a payment "
+                "method / credits at https://platform.openai.com/settings/organization/billing, "
+                "then rerun.")
+NO_KEY_HELP = ("No OpenAI API key found. Put a file named .env containing the line "
+               f"OPENAI_API_KEY=sk-... in {KEY_DIR} (Claude Code) or in the folder with your "
+               "study material (Cowork), or set the OPENAI_API_KEY environment variable.")
 
 
 def read_env_file(folder):
@@ -50,11 +62,64 @@ def read_env_file(folder):
     return None
 
 
-def find_key(script_path):
-    return (os.environ.get("OPENAI_API_KEY")
-            or read_env_file(script_path.parent)
-            or read_env_file(KEY_DIR)
-            or read_env_file(SKILL_DIR))
+def find_key(script_path=None):
+    if os.environ.get("OPENAI_API_KEY"):
+        return os.environ["OPENAI_API_KEY"]
+    folders = []
+    if script_path is not None:
+        work = script_path.resolve().parent
+        # The material's folder is the only one a sandbox (e.g. Cowork) can see in advance.
+        folders += [work, work.parent]
+    folders += [Path.cwd(), KEY_DIR, SKILL_DIR]
+    seen = set()
+    for folder in folders:
+        if folder in seen:
+            continue
+        seen.add(folder)
+        key = read_env_file(folder)
+        if key:
+            return key
+    return None
+
+
+def fail(message, code):
+    print(message, file=sys.stderr)
+    sys.exit(code)
+
+
+NETWORK_HELP = ("Cannot reach api.openai.com from this environment. Sandboxed chats often "
+                "block outside connections. Generate the audio from Claude Code or Cowork "
+                "on your own computer, or allow api.openai.com in the sandbox's network settings.")
+
+
+def check_access(key, model="gpt-4o-mini-tts"):
+    """Confirm the key and network work without generating audio.
+
+    Sends an empty input to the speech endpoint itself: OpenAI rejects it with a 400
+    (nothing is synthesized or billed), which proves the request got through and the
+    key was accepted. Using the speech endpoint, not /v1/models, keeps this working
+    for restricted keys that are only allowed to make audio.
+    """
+    data = json.dumps({"model": model, "voice": "coral", "input": ""}).encode("utf-8")
+    req = urllib.request.Request(API_URL, data=data, method="POST", headers={
+        "Authorization": f"Bearer {key}", "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=20):
+            return
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", "replace")[:500]
+        if '"error"' not in body:
+            # Not an OpenAI response: a proxy or firewall answered instead.
+            fail(f"{NETWORK_HELP} (HTTP {e.code} from a proxy)", 3)
+        if any(c in body for c in ("billing_not_active", "insufficient_quota")):
+            fail(BILLING_HELP + f" Details: {body}", 4)
+        if e.code in (401, 403):
+            fail(f"OpenAI rejected the API key (HTTP {e.code}). Check the key. {body}", 2)
+        if e.code in (400, 422):
+            return  # the expected "empty input" rejection: key and network are fine
+        fail(f"OpenAI check failed: HTTP {e.code}: {body}", 1)
+    except (urllib.error.URLError, OSError) as e:
+        fail(f"{NETWORK_HELP} ({e})", 3)
 
 
 def clean(text):
@@ -124,11 +189,9 @@ def synth(key, text, out_path, args):
             body = e.read().decode("utf-8", "replace")[:500]
             # 429 is also used for account problems that retrying cannot fix.
             if any(c in body for c in ("billing_not_active", "insufficient_quota")):
-                sys.exit("OpenAI account cannot be billed (no active billing or credits). "
-                         "Add a payment method / credits at https://platform.openai.com/"
-                         f"settings/organization/billing, then rerun. Details: {body}")
+                fail(BILLING_HELP + f" Details: {body}", 4)
             if e.code in (401, 403):
-                sys.exit(f"OpenAI rejected the API key (HTTP {e.code}). Check the key. {body}")
+                fail(f"OpenAI rejected the API key (HTTP {e.code}). Check the key. {body}", 2)
             if e.code in (429, 500, 502, 503, 504) and attempt < 4:
                 wait = 2 ** attempt * 5
                 print(f"    HTTP {e.code}, retrying in {wait}s")
@@ -139,7 +202,7 @@ def synth(key, text, out_path, args):
             if attempt < 4:
                 time.sleep(5)
                 continue
-            sys.exit(f"Network error: {e}")
+            fail(f"{NETWORK_HELP} ({e})", 3)
 
 
 def join_mp3(parts, out_path):
@@ -172,14 +235,26 @@ def duration(path):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("script")
-    ap.add_argument("--out", required=True)
+    ap.add_argument("script", nargs="?")
+    ap.add_argument("--out")
     ap.add_argument("--voice", default="coral")
     ap.add_argument("--model", default="gpt-4o-mini-tts")
     ap.add_argument("--instructions", default=DEFAULT_INSTRUCTIONS)
     ap.add_argument("--speed", type=float, default=1.0)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--check", action="store_true",
+                    help="only verify the API key and network access")
     args = ap.parse_args()
+
+    if args.check:
+        key = find_key(Path(args.script) if args.script else None)
+        if not key:
+            fail(NO_KEY_HELP, 2)
+        check_access(key, args.model)
+        print("OK - API key works and api.openai.com is reachable.")
+        return
+    if not args.script or not args.out:
+        ap.error("script and --out are required unless --check is used")
 
     script = Path(args.script)
     sections = parse_sections(script.read_text(encoding="utf-8"))
@@ -200,8 +275,8 @@ def main():
 
     key = find_key(script)
     if not key:
-        sys.exit("No OpenAI API key. Set OPENAI_API_KEY or create "
-                 f"{KEY_DIR / '.env'} with the line OPENAI_API_KEY=sk-...")
+        fail(NO_KEY_HELP, 2)
+    check_access(key, args.model)
 
     out = Path(args.out)
     tmp = out / "_chunks"

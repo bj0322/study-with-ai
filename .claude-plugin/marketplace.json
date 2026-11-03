@@ -5,14 +5,14 @@
   },
   "metadata": {
     "description": "Claude plugins for studying: turn lecture slides, textbooks and notes into complete explanations and listenable podcast audio.",
-    "version": "1.0.0"
+    "version": "1.0.1"
   },
   "plugins": [
     {
       "name": "study-podcast",
       "source": "./plugins/study-podcast",
       "description": "Turn lecture slides, textbook PDFs and notes into a page-by-page English explanation report with nothing skipped, a single-narrator podcast script, and MP3 audio via OpenAI TTS.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "category": "education",
       "keywords": ["study", "lecture", "slides", "podcast", "tts", "exam"]
     }
